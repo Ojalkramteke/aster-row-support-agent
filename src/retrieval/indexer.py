@@ -77,6 +77,8 @@ class Index:
             fm, body = parse_front_matter(raw)
             splits = split_into_passages(body)
             for idx, (heading, ptext) in enumerate(splits):
+                if not ptext.strip():
+                    continue
                 tokens = _tokenize(ptext)
                 tf = {}
                 for t in tokens:

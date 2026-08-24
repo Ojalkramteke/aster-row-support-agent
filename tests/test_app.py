@@ -174,3 +174,46 @@ def test_multiturn_order_override_vs_pronoun_reference():
     assert "ORD-1004" in p1["response"]
     p2 = agent.handle_message(session_pronoun, "where is it?")
     assert "ORD-1004" in p2["response"]
+
+
+def test_shipping_topic_generalization():
+    agent = SupportAgent()
+
+    # 1. International destinations
+    s1 = create_session()
+    r1 = agent.handle_message(s1, "Do you ship internationally?")
+    assert "06-international-shipping.md" in r1["response"] or "Canada" in r1["response"]
+    assert "returns" not in r1["response"].lower()
+
+    s2 = create_session()
+    r2 = agent.handle_message(s2, "Can you ship outside the US?")
+    assert "Canada" in r2["response"]
+
+    s3 = create_session()
+    r3 = agent.handle_message(s3, "Do you deliver overseas?")
+    assert "Canada" in r3["response"]
+
+    # 2. Domestic delivery duration
+    s4 = create_session()
+    r4 = agent.handle_message(s4, "How long does shipping take?")
+    assert "05-domestic-shipping.md" in r4["response"] or "business days" in r4["response"]
+    assert "Contiguous United States" in r4["response"] or "3–5 business days" in r4["response"]
+    assert "trailplus" not in r4["response"].lower()
+
+    s5 = create_session()
+    r5 = agent.handle_message(s5, "What is the delivery timeframe?")
+    assert "3–5 business days" in r5["response"] or "05-domestic-shipping.md" in r5["response"]
+
+    # 3. International delivery duration
+    s6 = create_session()
+    r6 = agent.handle_message(s6, "How long does international shipping take?")
+    assert "5–9 business days" in r6["response"] or "06-international-shipping.md" in r6["response"]
+
+
+def test_trailplus_membership_general_benefits():
+    agent = SupportAgent()
+    s = create_session()
+    r = agent.handle_message(s, "What benefits do TrailPlus members get?")
+    assert "09-trailplus-membership.md" in r["response"]
+    assert "45" in r["response"]
+    assert "free standard shipping" in r["response"].lower()

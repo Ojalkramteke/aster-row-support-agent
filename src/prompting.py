@@ -260,13 +260,26 @@ def detect_topic(text: str) -> Optional[str]:
             "ship",
             "shipping",
             "delivery",
+            "deliver",
             "arrive",
             "arrival",
+            "dispatch",
+            "timeframe",
+            "duration",
             "duties",
             "taxes",
             "canada",
             "international",
             "internationally",
+            "overseas",
+            "abroad",
+            "outside the us",
+            "outside us",
+            "outside united states",
+            "countries do you ship",
+            "what countries",
+            "which countries",
+            "countries you ship",
             "germany",
             "india",
         ],
@@ -278,7 +291,10 @@ def detect_topic(text: str) -> Optional[str]:
 
         "membership": [
             "trailplus",
-            "membership"
+            "membership",
+            "member benefits",
+            "member benefit",
+            "trailplus member",
         ],
 
         "product_care": [
@@ -626,6 +642,19 @@ def generate_kb_response(
             "handoff": True
         }
 
+    # special-case: TrailPlus membership general benefits
+    if topic == "membership" and any(k in qlower for k in ("benefit", "benefits", "perk", "perks", "what do trailplus", "what does trailplus", "what do members")) and "return" not in qlower and "ship" not in qlower:
+        resp = (
+            "According to 09-trailplus-membership.md: "
+            "TrailPlus members receive a 45-calendar-day return window from delivery for eligible items "
+            "and free standard shipping on eligible United States orders without a minimum purchase amount."
+        )
+        return {
+            "response": resp,
+            "source": {"filename": "09-trailplus-membership.md", "heading": "TrailPlus Membership Benefits"},
+            "handoff": False
+        }
+
     # special-case: shipping -> Canada
     if topic == "shipping" and "canada" in qlower:
         resp = (
@@ -658,6 +687,52 @@ def generate_kb_response(
             "source": {"filename": "06-international-shipping.md", "heading": "Supported destinations"},
             "handoff": True
         }
+
+    # special-case: general international shipping destinations
+    is_intl_dest = topic == "shipping" and any(k in qlower for k in (
+        "international", "internationally", "overseas", "abroad",
+        "outside the us", "outside us", "outside united states",
+        "countries do you ship", "what countries", "which countries", "countries you ship"
+    ))
+
+    if is_intl_dest and not any(c in qlower for c in ("canada", "germany", "india", "how long", "timeframe", "duration", "days")):
+        resp = (
+            "According to 06-international-shipping.md → Supported destinations: "
+            "Aster & Row currently ships internationally only to **Canada**. "
+            "Shipping to other countries is not available at this time."
+        )
+        return {
+            "response": resp,
+            "source": {"filename": "06-international-shipping.md", "heading": "Supported destinations"},
+            "handoff": False
+        }
+
+    # special-case: shipping duration / delivery estimates
+    is_time_query = any(k in qlower for k in ("how long", "timeframe", "duration", "how many days", "shipping time", "delivery time", "when will it arrive"))
+
+    if topic == "shipping" and is_time_query:
+        if any(c in qlower for c in ("international", "internationally", "canada", "overseas", "abroad")):
+            resp = (
+                "According to 06-international-shipping.md → Canada delivery estimate: "
+                "Canadian orders generally arrive within **5–9 business days after dispatch**. "
+                "Processing time before dispatch is usually 1–2 business days."
+            )
+            return {
+                "response": resp,
+                "source": {"filename": "06-international-shipping.md", "heading": "Canada delivery estimate"},
+                "handoff": False
+            }
+        else:
+            resp = (
+                "According to 05-domestic-shipping.md → Delivery estimates after dispatch: "
+                "Contiguous United States orders generally take **3–5 business days**, Alaska and Hawaii take **5–8 business days**, "
+                "and PO boxes take **5–9 business days** after dispatch (processing is usually 1–2 business days)."
+            )
+            return {
+                "response": resp,
+                "source": {"filename": "05-domestic-shipping.md", "heading": "Delivery estimates after dispatch"},
+                "handoff": False
+            }
 
     # special-case: warranty
     if topic == "warranty" or "warranty" in qlower:

@@ -105,3 +105,61 @@ def test_instruction_text_is_plain_text():
             found = True
     # It's acceptable if not found; the key is that when present it's plain text
     assert True
+
+
+def test_international_shipping_paraphrase_retrieval():
+    idx = Index()
+    idx.build(kb_dir=KB_DIR)
+    r = Retriever(index=idx)
+
+    intl_queries = [
+        "Do you ship internationally?",
+        "Can you ship outside the US?",
+        "Do you deliver overseas?",
+        "What countries do you ship to?",
+        "Can I get delivery outside the US?",
+    ]
+
+    for q in intl_queries:
+        results = r.search(q, top_k=3)
+        assert len(results) > 0
+        top = results[0]
+        assert top["filename"] == "06-international-shipping.md", f"Query '{q}' retrieved {top['filename']} instead of 06-international-shipping.md"
+
+
+def test_shipping_duration_retrieval():
+    idx = Index()
+    idx.build(kb_dir=KB_DIR)
+    r = Retriever(index=idx)
+
+    duration_queries = [
+        "How long does shipping take?",
+        "What is the delivery timeframe?",
+        "How many days does delivery take?",
+        "What is the shipping duration?",
+        "How long does standard shipping take?",
+    ]
+
+    for q in duration_queries:
+        results = r.search(q, top_k=3)
+        assert len(results) > 0
+        top = results[0]
+        assert top["filename"] == "05-domestic-shipping.md", f"Query '{q}' retrieved {top['filename']} instead of 05-domestic-shipping.md"
+        assert "delivery estimates" in top["heading"].lower() or "processing" in top["heading"].lower()
+
+
+def test_trailplus_and_returns_retrieval_isolation():
+    idx = Index()
+    idx.build(kb_dir=KB_DIR)
+    r = Retriever(index=idx)
+
+    # TrailPlus benefits query
+    tp_res = r.search("What benefits do TrailPlus members get?", top_k=3)
+    assert len(tp_res) > 0
+    assert tp_res[0]["filename"] == "09-trailplus-membership.md"
+
+    # Regular customer return window
+    ret_res = r.search("What is the standard return window for a regular customer?", top_k=3)
+    assert len(ret_res) > 0
+    assert ret_res[0]["filename"] == "01-returns-policy-current.md"
+    assert "standard return window" in ret_res[0]["heading"].lower()
