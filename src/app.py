@@ -31,12 +31,61 @@ class SupportAgent:
             session.add_assistant_message(res["response"])
             return res
 
+        # conversational greetings / polite inquiries
+        stripped = (message or "").strip().lower()
+        if re.match(r"^(hi|hello|hey|greetings|good\s+(morning|afternoon|evening))\b[!\.\?]*$", stripped):
+            resp = {
+                "response": "Hello! How can I help you with Aster & Row orders, shipping, or store policies today?",
+                "handoff": False
+            }
+            session.add_assistant_message(resp["response"])
+            return resp
+
+        if re.match(r"^(how\s+are\s+you(\s+doing)?|how's\s+it\s+going|how\s+are\s+things)\b[!\.\?]*$", stripped):
+            resp = {
+                "response": "I'm doing well, thank you! How can I assist you with Aster & Row customer support today?",
+                "handoff": False
+            }
+            session.add_assistant_message(resp["response"])
+            return resp
+
+        if re.match(r"^(thank\s+you|thanks|thank\s+you\s+so\s+much)\b[!\.\?]*$", stripped):
+            resp = {
+                "response": "You're very welcome! Let me know if there is anything else I can help you with.",
+                "handoff": False
+            }
+            session.add_assistant_message(resp["response"])
+            return resp
+
         # determine if order-related
         order_id = None
-        m = re.search(r"ord[-\s]?(\d{3,})", message, flags=re.I)
-        if m:
-            order_id = f"ORD-{m.group(1)}"
+
+        # 1. Explicit ORD format: ORD-1007, ORD 1007, ORD1007, ORD_1007
+        m_ord = re.search(r"\bord[-\s_]?(\d{3,})\b", message, flags=re.I)
+        if m_ord:
+            order_id = f"ORD-{m_ord.group(1)}"
             session.set_order_context(order_id)
+
+        # 2. 'order' or 'order number' / 'order #' / 'order id': order 1006, order number 1006, order #1006, order no. 1006
+        if not order_id:
+            m_order_num = re.search(r"\border(?:\s*(?:number|no\.?|id|#))?[\s\-_#:]*(\d{3,})\b", message, flags=re.I)
+            if m_order_num:
+                order_id = f"ORD-{m_order_num.group(1)}"
+                session.set_order_context(order_id)
+
+        # 3. Direct status / track / lookup / where is of a number: status of 1006, track 1006, where is 1006, check 1006
+        if not order_id:
+            m_status_num = re.search(r"\b(?:status\s+of|track|tracking|lookup|where\s+is|where's|check|for|about)\s+#?(\d{4,})\b", message, flags=re.I)
+            if m_status_num:
+                order_id = f"ORD-{m_status_num.group(1)}"
+                session.set_order_context(order_id)
+
+        # 4. Standalone number or hashtag: "1006", "#1006"
+        if not order_id:
+            m_standalone = re.search(r"^\s*#?(\d{3,})\s*[!\.\?]?$", message)
+            if m_standalone:
+                order_id = f"ORD-{m_standalone.group(1)}"
+                session.set_order_context(order_id)
 
         # if message mentions 'order' but no id, and we have context, use contextual id
         if not order_id and re.search(r"\border\b", message, flags=re.I):
@@ -146,3 +195,43 @@ class SupportAgent:
 
 def create_session() -> Session:
     return Session()
+
+
+def interactive_chat():
+    import sys
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+
+    agent = SupportAgent()
+    session = create_session()
+
+    print("==================================================")
+    print(" Aster & Row Support Agent - Interactive Chat")
+    print(" (Type 'exit' or 'quit' to end the conversation)")
+    print("==================================================\n")
+
+    while True:
+        try:
+            user_input = input("User: ")
+        except (KeyboardInterrupt, EOFError):
+            print("\nGoodbye! Have a great day.")
+            break
+
+        cleaned = user_input.strip()
+        if not cleaned:
+            continue
+
+        if cleaned.lower() in ("exit", "quit"):
+            print("\nGoodbye! Have a great day.")
+            break
+
+        result = agent.handle_message(session, cleaned)
+        response_text = result.get("response", "")
+        print(f"Bot:  {response_text}\n")
+
+
+if __name__ == "__main__":
+    interactive_chat()

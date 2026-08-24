@@ -15,8 +15,8 @@ def _normalize_order_id(raw_id: Optional[str]) -> Optional[str]:
     # remove surrounding punctuation like .,;:!?
     s = re.sub(r"^[\W_]+|[\W_]+$", "", s)
     s = s.upper()
-    # accept forms like ORD1007, ORD-1007, ord-1007
-    m = re.match(r"^ORD-?(\d+)$", s)
+    # accept forms like ORD1007, ORD-1007, ord-1007, ORDER 1007, ORDER #1007, 1007
+    m = re.match(r"^(?:ORD(?:ER)?[\s\-_#]*)?(\d{3,})$", s)
     if not m:
         return None
     digits = m.group(1)
