@@ -49,31 +49,46 @@ class SupportAgent:
         order_result = None
         # detect unsupported actions (no API available)
         if re.search(r"\bcancel|refund|replace|change address|address change|escalate\b", message, flags=re.I):
-            resp = {"response": "I can't perform that action. I can only look up order status. Please contact support for cancellations or refunds."}
+            resp = {
+                "response": "I can't perform that action. I can only look up order status. Please contact support for cancellations or order changes."
+            }
             session.add_assistant_message(resp["response"])
             return resp
 
         if order_id:
             # call existing lookup tool; only pass sanitized result
             lookup = lookup_order(order_id)
+
             if lookup.get("found"):
                 order_result = lookup.get("order")
             else:
                 # not found, respond accordingly
-                resp_text = lookup.get("message", "I couldn't find that order.")
+                resp_text = lookup.get("message", "The order was not found. Please check the order ID or contact support.")
+                if "contact support" not in resp_text.lower():
+                    resp_text = resp_text + " Please contact support for help."
                 session.add_assistant_message(resp_text)
-                return {"response": resp_text}
+                return {"response": resp_text, "handoff": True}
 
         # determine if knowledge-base retrieval needed
-        kb_needed = bool(re.search(r"return|refund|policy|membership|TrailPlus|shipping|warranty", message, flags=re.I))
+        from src.prompting import detect_topic
+        topic = detect_topic(message)
+        kb_needed = topic is not None
 
         passages = []
         if kb_needed:
             # if follow-up to KB, combine with last KB query for context
             query = message
-            if session.last_kb_query and not re.search(r"return|refund|policy|membership|TrailPlus", message, flags=re.I):
+            # combine with prior KB query for short follow-ups like "What about Canada?"
+            is_follow_up = False
+            if session.last_kb_query:
+                low = message.strip().lower()
+                if not detect_topic(message):
+                    is_follow_up = True
+                if low.startswith("what about") or low.startswith("what about the") or len(low.split()) <= 4:
+                    is_follow_up = True
+            if is_follow_up and session.last_kb_query:
                 query = session.last_kb_query + " " + message
-            results = self.retriever.search(query, top_k=3)
+            results = self.retriever.search(query, top_k=5)
             passages = results
             session.last_kb_query = query
 
@@ -86,26 +101,45 @@ class SupportAgent:
         # Generate deterministic response based on what we obtained
         if order_result and kb_needed:
             # prefer order info first, then KB
-            order_resp = generate_order_response(order_result)
+            order_resp = generate_order_response(order_result, message)
             kb_resp = generate_kb_response(passages, message) if passages else None
-            combined = order_resp["response"]
+            combined = order_resp.get("response", "")
             if kb_resp:
-                combined = combined + "\n\n" + kb_resp["response"]
+                combined = combined + "\n\n" + kb_resp.get("response", "")
+                # include handoff suggestion if KB recommends it
+                if kb_resp.get("handoff"):
+                    combined = combined + " Please contact support for help with this."
             session.add_assistant_message(combined)
-            return {"response": combined, "order": order_result, "retrieved": passages}
+            out = {"response": combined, "order": order_result, "retrieved": passages}
+            # include structured tool_called
+            out["tool_called"] = True
+            return out
 
         if order_result:
-            resp = generate_order_response(order_result)
+            resp = generate_order_response(order_result, message)
             session.add_assistant_message(resp["response"])
-            return {"response": resp["response"], "order": order_result}
+            out = {"response": resp["response"], "order": order_result}
+            out["tool_called"] = True
+            if resp.get("handoff"):
+                out["handoff"] = True
+            return out
 
         if kb_needed:
             resp = generate_kb_response(passages, message)
-            session.add_assistant_message(resp["response"])
-            return {"response": resp.get("response"), "retrieved": passages}
+            reply = resp.get("response", "")
+            if resp.get("handoff") and "contact support" not in reply.lower():
+                reply = reply + " Please contact support for help with this."
+            session.add_assistant_message(reply)
+            out = {"response": reply, "retrieved": passages}
+            if resp.get("handoff"):
+                out["handoff"] = True
+            return out
 
         # default: abstain
-        resp = {"response": "I don't have enough information to answer that."}
+        resp = {
+            "response": "I don't have enough information to answer that. The supplied information is insufficient, and human confirmation is required. Please contact support for help.",
+            "handoff": True
+        }
         session.add_assistant_message(resp["response"])
         return resp
 

@@ -96,7 +96,7 @@ def lookup_order(raw_order_id: Optional[str], orders_path: Optional[str] = None)
         return {
             "found": False,
             "error": "not_found",
-            "message": f"Order {norm} was not found. Please check the order ID and try again.",
+            "message": f"The order was not found for {norm}. Please check the order ID or contact support for assistance.",
         }
 
     sanitized = _sanitize_order_for_customer(order)
