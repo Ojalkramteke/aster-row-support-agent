@@ -57,6 +57,16 @@ class SupportAgent:
             session.add_assistant_message(resp["response"])
             return resp
 
+        if re.match(r"^(exit|quit|end|bye|goodbye)\b[!\.\?]*$", stripped):
+            resp = {
+                "response": "Thanks for chatting with Aster & Row Support! Goodbye.",
+                "handoff": False
+            }
+            session.add_assistant_message(resp["response"])
+            session.set_order_context(None)
+            session.last_kb_query = None
+            return resp
+
         # determine if order-related
         order_id = None
 

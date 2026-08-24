@@ -59,6 +59,7 @@ class Retriever:
 
             "germany": {"international", "shipping"},
             "canada": {"international", "shipping"},
+            "india": {"international", "shipping"},
 
             "dishwasher": {"dishwasher", "wash", "care"},
             "wash": {"dishwasher", "care"},
@@ -120,7 +121,7 @@ class Retriever:
         filename = passage.get("filename", "").lower()
         heading = passage.get("heading", "").lower()
 
-        if "germany" in query.lower():
+        if "germany" in query.lower() or "india" in query.lower():
             if "international-shipping" in filename:
                 score += 8.0
 

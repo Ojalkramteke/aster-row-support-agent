@@ -266,7 +266,9 @@ def detect_topic(text: str) -> Optional[str]:
             "taxes",
             "canada",
             "international",
-            "germany"
+            "internationally",
+            "germany",
+            "india",
         ],
 
         "warranty": [
@@ -642,6 +644,20 @@ def generate_kb_response(
         # prefer authoritative international shipping doc
         resp = "Shipping to Germany is not currently available."
         return {"response": resp, "source": {"filename": "06-international-shipping.md"}, "handoff": False}
+
+    # special-case: unconfirmed international country (India)
+    if topic == "shipping" and "india" in qlower:
+        resp = (
+            "According to 06-international-shipping.md → Supported destinations: "
+            "Aster & Row currently ships internationally only to Canada. "
+            "The available shipping policy does not confirm shipping to India. "
+            "Please contact support for human confirmation."
+        )
+        return {
+            "response": resp,
+            "source": {"filename": "06-international-shipping.md", "heading": "Supported destinations"},
+            "handoff": True
+        }
 
     # special-case: warranty
     if topic == "warranty" or "warranty" in qlower:
