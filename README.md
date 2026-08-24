@@ -4,6 +4,12 @@ A reliable, grounded, and privacy-preserving customer support agent for Aster & 
 
 ---
 
+## Demo
+
+A 2–4 minute demonstration of the Aster & Row Support Agent:
+
+[▶️ Watch the Aster & Row Support Agent Demo](https://drive.google.com/file/d/1ijXhlvLbgHGVatbJN1N-KshNni-5N-w8/view?usp=drive_link)
+
 ## Table of Contents
 
 - [Overview](#overview)
