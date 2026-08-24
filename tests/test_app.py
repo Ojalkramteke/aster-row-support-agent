@@ -121,3 +121,56 @@ def test_sanitized_order_returned():
     assert order is not None
     assert "customer" not in order
     assert "internal" not in order
+
+
+def test_order_whitespace_and_natural_variations():
+    agent = SupportAgent()
+
+    # 1. "where is ord 1004"
+    session1 = create_session()
+    out1 = agent.handle_message(session1, "where is ord 1004")
+    assert "ORD-1004" in out1["response"]
+    assert "cancelled" in out1["response"].lower()
+
+    # 2. "where is ord    1000"
+    session2 = create_session()
+    out2 = agent.handle_message(session2, "where is ord    1000")
+    assert "ORD-1000" in out2["response"]
+    assert "not found" in out2["response"].lower() or "couldn't find" in out2["response"].lower()
+
+    # 3. "where is order 1004"
+    session3 = create_session()
+    out3 = agent.handle_message(session3, "where is order 1004")
+    assert "ORD-1004" in out3["response"]
+
+    # 4. "where is order number 1000"
+    session4 = create_session()
+    out4 = agent.handle_message(session4, "where is order number 1000")
+    assert "ORD-1000" in out4["response"]
+    assert "not found" in out4["response"].lower() or "couldn't find" in out4["response"].lower()
+
+    # 5. "where is ORD-1004"
+    session5 = create_session()
+    out5 = agent.handle_message(session5, "where is ORD-1004")
+    assert "ORD-1004" in out5["response"]
+
+
+def test_multiturn_order_override_vs_pronoun_reference():
+    agent = SupportAgent()
+
+    # Multi-turn override: First turn ORD-1004, second turn explicitly asks for ORD-1000
+    session_override = create_session()
+    t1 = agent.handle_message(session_override, "where is ord 1004")
+    assert "ORD-1004" in t1["response"]
+    t2 = agent.handle_message(session_override, "where is ord    1000")
+    # Must resolve ORD-1000 (not-found), NOT fall back to ORD-1004!
+    assert "ORD-1000" in t2["response"]
+    assert "ORD-1004" not in t2["response"]
+    assert "not found" in t2["response"].lower() or "couldn't find" in t2["response"].lower()
+
+    # Multi-turn pronoun: First turn ORD-1004, second turn says "where is it?"
+    session_pronoun = create_session()
+    p1 = agent.handle_message(session_pronoun, "where is ord 1004")
+    assert "ORD-1004" in p1["response"]
+    p2 = agent.handle_message(session_pronoun, "where is it?")
+    assert "ORD-1004" in p2["response"]

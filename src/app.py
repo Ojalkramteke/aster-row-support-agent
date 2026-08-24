@@ -70,40 +70,51 @@ class SupportAgent:
         # determine if order-related
         order_id = None
 
-        # 1. Explicit ORD format: ORD-1007, ORD 1007, ORD1007, ORD_1007
-        m_ord = re.search(r"\bord[-\s_]?(\d{3,})\b", message, flags=re.I)
+        # 1. Explicit ORD / ORDER prefixes with any amount of whitespace, hyphens, or symbols:
+        # e.g. "ORD-1004", "ORD 1004", "ORD    1000", "ord-1004", "ord 1004", "ord    1004",
+        # "order 1004", "order number 1004", "order #1004", "order no. 1004", "order: 1004"
+        m_ord = re.search(
+            r"\b(?:ord(?:er)?)(?:[\s\-_#]+(?:number|no\.?|id|#)?)?[\s\-_#:]*(\d{3,})\b",
+            message,
+            flags=re.I
+        )
         if m_ord:
             order_id = f"ORD-{m_ord.group(1)}"
             session.set_order_context(order_id)
 
-        # 2. 'order' or 'order number' / 'order #' / 'order id': order 1006, order number 1006, order #1006, order no. 1006
+        # 2. Action/preposition + 4-digit number:
+        # e.g. "where is 1004", "status of 1000", "track 1006", "check #1007", "about 1005"
         if not order_id:
-            m_order_num = re.search(r"\border(?:\s*(?:number|no\.?|id|#))?[\s\-_#:]*(\d{3,})\b", message, flags=re.I)
-            if m_order_num:
-                order_id = f"ORD-{m_order_num.group(1)}"
-                session.set_order_context(order_id)
-
-        # 3. Direct status / track / lookup / where is of a number: status of 1006, track 1006, where is 1006, check 1006
-        if not order_id:
-            m_status_num = re.search(r"\b(?:status\s+of|track|tracking|lookup|where\s+is|where's|check|for|about)\s+#?(\d{4,})\b", message, flags=re.I)
+            m_status_num = re.search(
+                r"\b(?:status\s+of|track|tracking|lookup|where\s+is|where's|check|for|about|no\.?|#)\s*#?(\d{4,})\b",
+                message,
+                flags=re.I
+            )
             if m_status_num:
                 order_id = f"ORD-{m_status_num.group(1)}"
                 session.set_order_context(order_id)
 
-        # 4. Standalone number or hashtag: "1006", "#1006"
+        # 3. Standalone number: "1004", "#1000"
         if not order_id:
             m_standalone = re.search(r"^\s*#?(\d{3,})\s*[!\.\?]?$", message)
             if m_standalone:
                 order_id = f"ORD-{m_standalone.group(1)}"
                 session.set_order_context(order_id)
 
-        # if message mentions 'order' but no id, and we have context, use contextual id
-        if not order_id and re.search(r"\border\b", message, flags=re.I):
-            order_id = session.get_order_context()
+        # 4. Any other explicit 4-digit reference not part of a policy/date phrase (e.g. "what about 1000?"):
+        if not order_id:
+            for num in re.findall(r"\b(\d{4})\b", message):
+                if num != "2026":
+                    order_id = f"ORD-{num}"
+                    session.set_order_context(order_id)
+                    break
 
-        # follow-up detection: if the user asks about delivery/status/tracking without mentioning 'order'
-        if not order_id and session.get_order_context() and re.search(r"\b(arrive|arrival|delivery|when|status|track|tracking|where)\b", message, flags=re.I):
-            order_id = session.get_order_context()
+        # 5. Genuine follow-up referring to active session order without a new ID:
+        # e.g. "where is it?", "when will it arrive?", "when was it delivered?", "what is its status?"
+        if not order_id and session.get_order_context():
+            if re.search(r"\b(arrive|arrival|delivery|when|status|track|tracking|where\s+is\s+it|where\s+is\s+that|where\s+it\s+is|it\s+at)\b", message, flags=re.I):
+                if not re.search(r"\b(policy|canada|germany|india|international|standard|shipping\s+charge|free\s+shipping)\b", message, flags=re.I):
+                    order_id = session.get_order_context()
 
         order_result = None
         # detect unsupported actions (no API available)
